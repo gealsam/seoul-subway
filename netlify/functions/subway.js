@@ -2,7 +2,7 @@
 const fetch = require('node-fetch');
 
 // 인증키 한 개만 넣으세요
-const API_KEY = '여기에_서울시_인증키_입력';
+const API_KEY = '79495874757275673939587442634a';
 
 const lines = ['1', '2', '3'];
 
