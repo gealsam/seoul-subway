@@ -1,51 +1,54 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>서울 지하철 실시간 위치</title>
 </head>
 <body>
-  <h1>서울 지하철 실시간 위치</h1>
-  <select id="lineSelect">
-    <option value="1호선">1호선</option>
-    <option value="2호선">2호선</option>
-    <option value="3호선">3호선</option>
-  </select>
-  <div id="results">로딩 중...</div>
+  <h1>서울 지하철 실시간 위치 (전체 노선)</h1>
+  <div id="results">불러오는 중...</div>
 
   <script>
-    const select = document.getElementById("lineSelect");
-    const results = document.getElementById("results");
+    const results = document.getElementById('results');
 
-    async function fetchSubway(line) {
-      results.innerText = "불러오는 중...";
+    async function fetchAllLines() {
+      results.innerText = '불러오는 중...';
       try {
-        const res = await fetch(`/.netlify/functions/subway?line=${encodeURIComponent(line)}`);
-        const data = await res.json();
-        if (!data.realtimePosition || !data.realtimePosition.row) {
-          results.innerText = "열차 정보가 없습니다.";
+        const res = await fetch('/.netlify/functions/subway');
+        if (!res.ok) {
+          results.innerText = 'API 요청 실패: ' + res.statusText;
           return;
         }
+        const data = await res.json();
 
-        results.innerHTML = data.realtimePosition.row.map(train => `
-          <div>
-            🚆 열차번호: ${train.trainNo} <br/>
-            📍 현재역: ${train.statnNm} <br/>
-            🔁 상태: ${train.trainSttus} <br/>
-            🛤 방향: ${train.updnLine === '0' ? '상행' : '하행'}
-          </div><hr/>
-        `).join('');
+        // data 구조: { "1": [...], "2": [...], ... }
+        let html = '';
+        for (const line in data) {
+          html += `<h2>${line}호선</h2>`;
+          if (!data[line].length) {
+            html += `<p>데이터 없음</p>`;
+            continue;
+          }
+          data[line].forEach(train => {
+            html += `
+              <div>
+                🚆 열차번호: ${train.trainNo} <br/>
+                📍 현재역: ${train.statnNm} <br/>
+                🔁 상태: ${train.trainSttus} <br/>
+                🛤 방향: ${train.updnLine === '0' ? '상행' : '하행'}
+              </div><hr/>`;
+          });
+        }
+        results.innerHTML = html;
+
       } catch (err) {
-        results.innerText = "🚫 요청 실패: " + err.message;
+        results.innerText = '🚫 요청 실패: ' + err.message;
       }
     }
 
-    select.addEventListener("change", () => {
-      fetchSubway(select.value);
-    });
-
-    fetchSubway(select.value);
+    fetchAllLines();
   </script>
 </body>
 </html>
