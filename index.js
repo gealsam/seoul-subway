@@ -1,11 +1,14 @@
 const express = require('express');
 const cors = require('cors');
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// ✅ 특정 도메인만 허용 (여기서 'https://www.hsrdata.com'만)
+app.use(cors({
+  origin: 'https://www.hsrdata.com'
+}));
 
 app.get('/subway', async (req, res) => {
   const line = req.query.line || '1호선';
@@ -16,12 +19,12 @@ app.get('/subway', async (req, res) => {
   try {
     const response = await fetch(url);
     if (!response.ok) {
-      return res.status(response.status).send('서울시 API 요청 실패');
+      return res.status(response.status).json({ error: '서울시 API 요청 실패' });
     }
     const data = await response.json();
     res.json(data);
   } catch (err) {
-    res.status(500).send('프록시 서버 오류: ' + err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
