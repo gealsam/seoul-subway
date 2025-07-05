@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>서울 지하철 실시간 위치</title>
+</head>
+<body>
+  <h1>서울 지하철 실시간 위치</h1>
+  <select id="lineSelect">
+    <option value="1호선">1호선</option>
+    <option value="2호선">2호선</option>
+    <option value="3호선">3호선</option>
+  </select>
+  <div id="results">로딩 중...</div>
+
+  <script>
+    const select = document.getElementById("lineSelect");
+    const results = document.getElementById("results");
+
+    async function fetchSubway(line) {
+      results.innerText = "불러오는 중...";
+      try {
+        const res = await fetch(`/.netlify/functions/subway?line=${encodeURIComponent(line)}`);
+        const data = await res.json();
+        if (!data.realtimePosition || !data.realtimePosition.row) {
+          results.innerText = "열차 정보가 없습니다.";
+          return;
+        }
+
+        results.innerHTML = data.realtimePosition.row.map(train => `
+          <div>
+            🚆 열차번호: ${train.trainNo} <br/>
+            📍 현재역: ${train.statnNm} <br/>
+            🔁 상태: ${train.trainSttus} <br/>
+            🛤 방향: ${train.updnLine === '0' ? '상행' : '하행'}
+          </div><hr/>
+        `).join('');
+      } catch (err) {
+        results.innerText = "🚫 요청 실패: " + err.message;
+      }
+    }
+
+    select.addEventListener("change", () => {
+      fetchSubway(select.value);
+    });
+
+    fetchSubway(select.value);
+  </script>
+</body>
+</html>
