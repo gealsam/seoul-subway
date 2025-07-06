@@ -1,61 +1,49 @@
-const express = require('express');
-const cors = require('cors');
-const compression = require('compression');
-const NodeCache = require('node-cache');
-const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+// index.js 중 /subway 핸들러 부분만 발췌
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+const DEFAULT_TIMEOUT = 3000; // 3초
 
-// 1. CORS: hsrdata.com만 허용
-app.use(cors({ origin: 'https://hsrdata.com' }));
-
-// 2. GZIP 압축
-app.use(compression());
-
-// 3. 캐시 설정 (5초 TTL)
-const cache = new NodeCache({ stdTTL: 5, checkperiod: 10 });
-
-function getRandomApiKey() {
-  const keys = (process.env.SEOUL_API_KEYS || '').split(',').map(k => k.trim()).filter(Boolean);
-  return keys.length ? keys[Math.floor(Math.random() * keys.length)] : null;
+// fetch에 타임아웃 적용
+async function fetchWithTimeout(url, timeout) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
 }
-
-app.get('/', (req, res) => res.send('✅ 서버 정상 작동 중!'));
 
 app.get('/subway', async (req, res) => {
   const line = req.query.line || '1호선';
   const cacheKey = `subway:${line}`;
 
-  // 4. 캐시 조회
-  const cached = cache.get(cacheKey);
-  if (cached) {
-    return res.json(cached);
-  }
+  // 캐시 체크 생략...
 
-  const apiKey = getRandomApiKey();
-  if (!apiKey) {
-    return res.status(500).json({ error: 'API 키 누락' });
-  }
+  // 여러 키 순환하며 시도
+  const keys = apiKeys; // 앞에서 split 해서 만든 배열
+  let lastError = null;
 
-  const url = `https://swopenapi.seoul.go.kr/api/subway/${apiKey}/json/realtimePosition/0/30/${encodeURIComponent(line)}`;
-
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      return res.status(response.status).json({ error: response.statusText });
+  for (let i = 0; i < keys.length; i++) {
+    const apiKey = getNextApiKey();  // 이전에 구현한 순차 선택
+    const url = `https://swopenapi.seoul.go.kr/api/subway/${apiKey}/json/realtimePosition/0/30/${encodeURIComponent(line)}`;
+    
+    try {
+      const response = await fetchWithTimeout(url, DEFAULT_TIMEOUT);
+      if (!response.ok) {
+        lastError = new Error(`서울시 API 오류: ${response.status}`);
+        continue;  // 다음 키로 재시도
+      }
+      const data = await response.json();
+      cache.set(cacheKey, data);
+      return res.json(data);
+    } catch (err) {
+      lastError = err;
+      // ETIMEDOUT 또는 AbortError 예상 → 다음 키로 계속
     }
-    const data = await response.json();
-
-    // 5. 캐시에 저장
-    cache.set(cacheKey, data);
-
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
-});
 
-app.listen(PORT, () => {
-  console.log(`✅ 서버 실행 중 포트 ${PORT}`);
+  // 모든 키로 시도했으나 실패
+  console.error('모든 키로 호출 실패:', lastError);
+  res.status(502).json({ error: lastError.message });
 });
