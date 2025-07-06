@@ -5,19 +5,24 @@ const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fet
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS 설정: hsrdata.com만 허용
+// CORS 설정: 특정 도메인만 허용 (여기선 hsrdata.com)
 app.use(cors({
-  origin: 'https://hsrdata.com'
+  origin: 'https://hsrdata.com'  // 필요 시 * 로 변경 가능
 }));
 
-// 환경변수 SEOUL_API_KEYS 에서 키 배열 추출 후 랜덤 선택
+// API 키 랜덤 선택 함수
 function getRandomApiKey() {
   const keys = (process.env.SEOUL_API_KEYS || '').split(',').map(k => k.trim()).filter(Boolean);
   if (keys.length === 0) return null;
-  const key = keys[Math.floor(Math.random() * keys.length)];
-  return key;
+  return keys[Math.floor(Math.random() * keys.length)];
 }
 
+// 루트 경로 응답 (확인용)
+app.get('/', (req, res) => {
+  res.send('✅ 서버 정상 작동 중!');
+});
+
+// /subway 경로: 서울시 지하철 실시간 정보 프록시
 app.get('/subway', async (req, res) => {
   const line = req.query.line || '1호선';
   const apiKey = getRandomApiKey();
@@ -27,22 +32,19 @@ app.get('/subway', async (req, res) => {
   }
 
   const url = `https://swopenapi.seoul.go.kr/api/subway/${apiKey}/json/realtimePosition/0/30/${encodeURIComponent(line)}`;
-
-  console.log(`[API 호출] key: ${apiKey}, url: ${url}`);
+  console.log(`[API 호출] ${url}`);
 
   try {
     const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`서울시 API 오류: ${response.status} ${response.statusText}`);
-    }
     const data = await response.json();
     res.json(data);
   } catch (error) {
-    console.error('[API 오류]', error);
+    console.error('API 호출 실패:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
+// 서버 실행
 app.listen(PORT, () => {
-  console.log(`서버 실행 중 http://localhost:${PORT} (포트 ${PORT})`);
+  console.log(`✅ 서버 실행 중: http://localhost:${PORT}`);
 });
